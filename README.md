@@ -2,6 +2,7 @@
 
 This repository stores scripts used to reverse and deobfuscate Java-based malware, along with the full deobfuscated source code output for malware analysis write up:
 https://hareezishraf5.github.io/blog/Java-based-malware/
+
 Sample: https://www.virustotal.com/gui/file/982e47f604b9b5cbb710f9d6bad16a3e44b0122c44dede726729b843ba357414
 
 1. Complete_DeobfuscatedVersion_FileDownloader.txt
